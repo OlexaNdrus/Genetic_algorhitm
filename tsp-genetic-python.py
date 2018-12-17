@@ -1,58 +1,73 @@
 '''
 Genetic Algorithm for the Travelling Salesman Problem
-v1.0
-
-by
-
-JackFrigaard
-mail@jackf.net
-
-Written for Python 3.1+
-
 '''
 
 import random
 import copy
 import os
 import time
-import math
-import csv
 
-try:
-    from tkinter import *
-    from tkinter.ttk import *
-except Exception as e:
-    print("[ERROR]: {0}".format(e))
-    from Tkinter import *
+from tkinter import *
+from tkinter.ttk import *
 
 list_of_cities =[]
 
 #########################################
 ######                             ######
-######    Algorithm paremeters:    ######
+######    Параметри алгоритму:    ######
 ######                             ######
 #########################################
 
-# probability that an individual Route will mutate
-k_mut_prob = 0.4
+# Ймовірність що індивідуальний шлях мутує
 
-# Number of generations to run for
-k_n_generations = 100
-# Population size of 1 generation (RoutePop)
-k_population_size = 100
+try:
+    mut_prob = float(input('Введіть ймовірність мутації (0<p<1)\n'))
+except:
+    print('Введене значення не валідне , взято дефолтне значення  0.4\n')
+    mut_prob = 0.4
+else:
+    if mut_prob > 1 or mut_prob < 0:
+        print('Введене значення не валідне , взято дефолтне значення  0.4\n')
+        mut_prob = 0.4
 
-# Size of the tournament selection. 
-tournament_size = 7
 
-# If elitism is True, the best from one generation will carried over to the next.
+# Число поколінь
+
+try:
+    num_generations = int(input('Введіть число поколінь(0<n<300)\n'))
+except:
+    print('Введене значення не валідне , взято дефолтне значення  50\n')
+    num_generations = 50
+else:
+    if num_generations >= 301 or num_generations <= 0 :
+        print('Введене значення не валідне , взято дефолтне значення  50\n')
+        num_generations = 50
+
+
+# Величина популяції одного покоління
+try:
+    population_size = int(input('Введіть величину популяції(0<n<1000)\n'))
+except:
+    print('Введене значення не валідне , взято дефолтне значення  100\n')
+    population_size = 100
+else:
+    if population_size >= 1001 or num_generations <= 0 :
+        print('Введене значення не валідне , взято дефолтне значення  100\n')
+        population_size = 100
+
+# Розмір турнірної клітки
+try:
+    tournament_size = int(input('Введіть величину групи турнірної селекції (2<n<10)\n'))
+except:
+    print('Введене значення не валідне , взято дефолтне значення  7\n')
+    tournament_size = 7
+else:
+    if tournament_size >= 10 or num_generations <= 2 :
+        print('Введене значення не валідне , взято дефолтне значення  7\n')
+        tournament_size = 7
+
+# Якщо значення істинне , найращий з кожного покоління перенесеться у наступне
 elitism = True
-
-# Read city data from csv?
-csv_cities = False
-
-# Full path for csv file. The r prefix avoids any conflicts with backslashes.
-csv_name = 'cities.csv'
-
 
 # City class
 class City(object):
@@ -68,13 +83,13 @@ class City(object):
 
     """
     def __init__(self, name, x, y, distance_to=None):
-        # Name and coordinates:
+        # Назви та координати :
         self.name = name
         self.x = self.graph_x = x
         self.y = self.graph_y = y
-        # Appends itself to the global list of cities:
+        # Додає екземпляр до глобального списку міст :
         list_of_cities.append(self)
-        # Creates a dictionary of the distances to all the other cities (has to use a value so uses itself - always 0)
+        # Створює словник відстаней до всіх інших міст
         self.distance_to = {self.name:0.0}
         if distance_to:
             self.distance_to = distance_to
@@ -93,7 +108,7 @@ class City(object):
             tmp_dist = self.point_dist(self.x, self.y, city.x, city.y)
             self.distance_to[city.name] = tmp_dist
 
-    # Calculates the distance between two cartesian points..
+    # Обчислює вістань міє двома координатами
     def point_dist(self, x1,y1,x2,y2):
         return ((x1-x2)**2 + (y1-y2)**2)**(0.5)
 
@@ -112,9 +127,9 @@ class Route(object):
     self.pr_vrb_cits_in_rt: Prints all the coordinate pairs of the cities in the route, in the form <|x,y|x,y|x,y|...>
     """
     def __init__(self):
-        # initiates a route attribute equal to a randomly shuffled list_of_cities
+        # Ініціалізує атрибут шляху рівний випадково посортованому списку міст
         self.route = sorted(list_of_cities, key=lambda *args: random.random())
-        ### Calculates its length:
+        # Обраховує свою довжину:
         self.recalc_rt_len()
 
     def recalc_rt_len(self):
@@ -124,30 +139,26 @@ class Route(object):
         Method to re-calculate the route length
         if the self.route attribute has been changed manually.
         '''
-        # Zeroes its length
+        # Обнуляємо свою довжину
         self.length = 0.0
-        # for every city in its route attribute:
+        # Для кожного міста в атрибуті шляху:
         for city in self.route:
-            # set up a next city variable that points to the next city in the list 
-            # and wraps around at the end:
+            # Встановлює змінну наступного міста з списку :
             next_city = self.route[self.route.index(city)-len(self.route)+1]
-            # Uses the first city's distance_to attribute to find the distance to the next city:
+            # Використовує пурший атрибут відстані distance_to щоб знайти відстань до наступного міста(точки):
             dist_to_next = city.distance_to[next_city.name]
-            # adds this length to its length attr.
+
+            # Додає довжину даного ребрага до загального шляху
             self.length += dist_to_next
 
     def pr_cits_in_rt(self, print_route=False):
         '''
         self --> None
 
-        Prints all the cities in the route, in the form <cityname1,cityname2,cityname3...>
+        Prints all the cities in the route
         '''
-        cities_str = ''
         for city in self.route:
-            cities_str += city.name + ','
-        cities_str = cities_str[:-1] # chops off last comma
-        if print_route:
-            print('    ' + cities_str)
+            print(city.name)
 
     def pr_vrb_cits_in_rt(self):
         '''
@@ -171,17 +182,17 @@ class Route(object):
         it will converge until all the cities are that same city (length = 0)
         '''
         for city in list_of_cities:
-            # helper function defined up to
+            # Допоміжна функція яка перевіряє валідність шляху
             if self.count_mult(self.route,lambda c: c.name == city.name) > 1:
                 return False
         return True
 
-    # Returns the number of pred in sequence (duplicate checking.)
+    # Повертає число пройдених ребер у кінці шляху
     def count_mult(self, seq, pred):
         return sum(1 for v in seq if pred(v))
 
 
-# Contains a population of Route() objects
+# Містить популяцію об'єктів Route()
 class RoutePop(object):
     """
     Contains a list of route objects and provides info on them.
@@ -195,7 +206,7 @@ class RoutePop(object):
     def __init__(self, size, initialise):
         self.rt_pop = []
         self.size = size
-        # If we want to initialise a population.rt_pop:
+        # Якщо ми ініціалізуємо population.rt_pop:
         if initialise:
             for x in range(0,size):
                 new_rt = Route()
@@ -208,13 +219,13 @@ class RoutePop(object):
 
         Returns the two shortest routes in the population, in a list called self.top_two
         '''
-        # sorts the list based on the routes' lengths
+        # сортування списку відповідно до довжин шляхів
         sorted_list = sorted(self.rt_pop, key=lambda x: x.length, reverse=False)
         self.fittest = sorted_list[0]
         return self.fittest
 
 
-# Class for bringing together all of the methods to do with the Genetic Algorithm
+# Клас методів необхідних для  Генетичного алгоритму
 class GA(object):
     """
     Class for running the genetic algorithm. Do not __init__ - Class only provides methods. 
@@ -222,85 +233,13 @@ class GA(object):
     crossover(parent1, parent2): Returns a child route after breeding the two parent routes. 
 
     """
-    def crossover_experimental(routeA,routeB):
-        '''
-            Experimental crossover algorithm using a spidering-out idea. Less effective at the moment.
-        '''
-        # new child Route()
-        child_rt = Route()
 
-
-        # prevents from recalculating
-        routeB_len = len(routeB.route)
-
-        # Chooses a random city
-        random_city = random.choice(list_of_cities)
-
-        # routeA going down
-        # routeB going up
-
-        incrementing_a = True
-        incrementing_b = True
-
-        idx_a = routeA.route.index(random_city)
-        idx_b = routeB.route.index(random_city)
-
-        idx_a -= 1
-        idx_b += 1
-
-        if idx_a < 0:
-            incrementing_a = False
-
-        if idx_b >= routeB_len:
-            incrementing_b = False
-
-        child_rt.route = [random_city]
-
-        # print(random_city.name)
-
-        while (incrementing_a and incrementing_b):
-            # print('idx_a: {}'.format(idx_a))
-
-            if idx_a >= 0:
-                if not (routeA.route[idx_a] in child_rt.route):
-                    child_rt.route.insert(0, routeA.route[idx_a])
-
-            idx_a -= 1
-
-            if idx_a < 0:
-                incrementing_a = False
-                break
-
-            # child_rt.pr_cits_in_rt()
-
-
-            if idx_b < routeB_len:
-                if not (routeB.route[idx_b] in child_rt.route):
-                    child_rt.route.append(routeB.route[idx_b])
-
-            idx_b += 1
-
-            if idx_b >= routeB_len:
-                incrementing_b = False
-                break
-
-            # print('idx_b: {}'.format(idx_b))
-            # child_rt.pr_cits_in_rt()
-
-        # now either incrementing_a or incementing_b must be false
-
-        shuffled_cities = sorted(routeA.route, key=lambda *args: random.random())
-        for city in shuffled_cities:
-            if not city in child_rt.route:
-                child_rt.route.append(city)
-
-        return child_rt
 
     def crossover(self, parent1, parent2):
         '''
         Route(), Route() --> Route()
 
-        Returns a child route Route() after breeding the two parent routes. 
+        Returns a child route Route() after breeding the two parent routes.
         Routes must be of same length.
 
         Breeding is done by selecting a random range of parent1, and placing it into the empty child route (in the same place).
@@ -320,121 +259,80 @@ class GA(object):
 
         '''
 
-
-
-        # new child Route()
+        # Новий нащадок Route()
         child_rt = Route()
 
         for x in range(0,len(child_rt.route)):
             child_rt.route[x] = None
 
-        # Two random integer indices of the parent1:
+        # Обираємо два випадкові індекси:
         start_pos = random.randint(0,len(parent1.route))
         end_pos = random.randint(0,len(parent1.route))
 
 
-        #### takes the sub-route from parent one and sticks it in itself:
-        # if the start position is before the end:
+        # Бере підмаршрут від одного батька і запихає його у себе :
+        # Якщо початковий індекс менший індексу кіньця:
         if start_pos < end_pos:
-            # do it in the start-->end order
-            for x in range(start_pos,end_pos):
-                child_rt.route[x] = parent1.route[x] # set the values to eachother
-        # if the start position is after the end:
+            # Порядок поч. --> кінець.
+            for x in range(start_pos, end_pos):
+                child_rt.route[x] = parent1.route[x]
+        # Якщо початковий індекс більший індексу кіньця:
         elif start_pos > end_pos:
-            # do it in the end-->start order
-            for i in range(end_pos,start_pos):
-                child_rt.route[i] = parent1.route[i] # set the values to eachother
+            # Порядок кінець. --> почат.
+            for i in range(end_pos, start_pos):
+                child_rt.route[i] = parent1.route[i]
 
 
-        # Cycles through the parent2. And fills in the child_rt
-        # cycles through length of parent2:
+        # Проходить циклом по 2 батьку і наповнює маршрут нащадка
+        # Проходить циклом по довжині 2-го батька:
         for i in range(len(parent2.route)):
-            # if parent2 has a city that the child doesn't have yet:
+            # Якщо 2 батько має місто якого ще не має :
             if not parent2.route[i] in child_rt.route:
-                # it puts it in the first 'None' spot and breaks out of the loop.
+                # Елемент встановлюється на перше пусте місце і виходить з циклу.
                 for x in range(len(child_rt.route)):
                     if child_rt.route[x] == None:
                         child_rt.route[x] = parent2.route[i]
                         break
-        # repeated until all the cities are in the child route
+        # Повторити доки всі міста не будуть в маршруті нащадка
 
-        # returns the child route (of type Route())
+        # Повертає обєкт Route() нащадка
         child_rt.recalc_rt_len()
         return child_rt
 
     def mutate(self, route_to_mut):
-        '''
-        Route() --> Route()
+        # k_mut_prob Ймовірність мутації :
+        if random.random() < mut_prob:
 
-        Swaps two random indexes in route_to_mut.route. Runs k_mut_prob*100 % of the time
-        '''
-        # k_mut_prob %
-        if random.random() < k_mut_prob:
-
-            # two random indices:
+            # Два випадкові індекси:
             mut_pos1 = random.randint(0,len(route_to_mut.route)-1)
             mut_pos2 = random.randint(0,len(route_to_mut.route)-1)
 
-            # if they're the same, skip to the chase
+            # Якщо індекси однакові маршрут НЕ мутує
             if mut_pos1 == mut_pos2:
                 return route_to_mut
 
-            # Otherwise swap them:
+            # В іншому випадку міняємо місцями елементи під індексами :
             city1 = route_to_mut.route[mut_pos1]
             city2 = route_to_mut.route[mut_pos2]
 
             route_to_mut.route[mut_pos2] = city1
             route_to_mut.route[mut_pos1] = city2
 
-        # Recalculate the length of the route (updates it's .length)
+        # Перерахуємо довжини маршрутів
         route_to_mut.recalc_rt_len()
 
         return route_to_mut
 
-    def mutate_2opt(route_to_mut):
-        '''
-        Route() --> Route()
-
-        Swaps two random indexes in route_to_mut.route. Runs k_mut_prob*100 % of the time
-        '''
-        # k_mut_prob %
-        if random.random() < k_mut_prob:
-
-            for i in range(len(route_to_mut.route)):
-                for ii in range(len(route_to_mut.route)): # i is a, i + 1 is b, ii is c, ii+1 is d
-                    if (route_to_mut.route[i].distance_to[route_to_mut.route[i-len(route_to_mut.route)+1].name]
-                     + route_to_mut.route[ii].distance_to[route_to_mut.route[ii-len(route_to_mut.route)+1].name]
-                     > route_to_mut.route[i].distance_to[route_to_mut.route[ii].name]
-                     + route_to_mut.route[i-len(route_to_mut.route)+1].distance_to[route_to_mut.route[ii-len(route_to_mut.route)+1].name]):
-
-                        c_to_swap = route_to_mut.route[ii]
-                        b_to_swap = route_to_mut.route[i-len(route_to_mut.route)+1]
-
-                        route_to_mut.route[i-len(route_to_mut.route)+1] = c_to_swap
-                        route_to_mut.route[ii] = b_to_swap 
-
-            route_to_mut.recalc_rt_len()
-
-        return route_to_mut
 
     def tournament_select(self, population):
-        '''
-        RoutePop() --> Route()
+        # Нова менша популяція
+        tournament_pop = RoutePop(size=tournament_size, initialise=False)
 
-        Randomly selects tournament_size amount of Routes() from the input population.
-        Takes the fittest from the smaller number of Routes(). 
-
-        Principle: gives worse Routes() a chance of succeeding, but favours good Routes()
-        '''
-
-        # New smaller population (not intialised)
-        tournament_pop = RoutePop(size=tournament_size,initialise=False)
-
-        # fills it with random individuals (can choose same twice)
+        # Наповнює популяцію випадковими значеннми (можуть бути дублікати)
         for i in range(tournament_size-1):
             tournament_pop.rt_pop.append(random.choice(population.rt_pop))
         
-        # returns the fittest:
+        # повертає найбільш придатний:
         return tournament_pop.get_fittest()
 
     def evolve_population(self, init_pop):
@@ -444,35 +342,35 @@ class GA(object):
         Takes a population and evolves it then returns the new population. 
         '''
 
-        #makes a new population:
+        #Створення нової популяції:
         descendant_pop = RoutePop(size=init_pop.size, initialise=True)
 
-        # Elitism offset (amount of Routes() carried over to new population)
+        # Зміщення найкращих представників (кількість об'єктів Routes() переноситься до нової популяції)
         elitismOffset = 0
 
-        # if we have elitism, set the first of the new population to the fittest of the old
+        # Якщо значення істинне , встановлюєм замість першого елементу нащадка , найкращий батьківський ел.
         if elitism:
             descendant_pop.rt_pop[0] = init_pop.fittest
             elitismOffset = 1
 
-        # Goes through the new population and fills it with the child of two tournament winners from the previous populatio
+        # Проходить через нову популяцію і наповняє її двума переможцями турніру з минулої популяції
         for x in range(elitismOffset,descendant_pop.size):
-            # two parents:
+            # Два батьки:
             tournament_parent1 = self.tournament_select(init_pop)
             tournament_parent2 = self.tournament_select(init_pop)
 
-            # A child:
+            # Нащадок:
             tournament_child = self.crossover(tournament_parent1, tournament_parent2)
 
-            # Fill the population up with children
+            # Наповнення популяції нащадками
             descendant_pop.rt_pop[x] = tournament_child
 
-        # Mutates all the routes (mutation with happen with a prob p = k_mut_prob)
+        # Мутує кожен маршрут  (
         for route in descendant_pop.rt_pop:
-            if random.random() < 0.3:
+            if random.random() < mut_prob:
                 self.mutate(route)
 
-        # Update the fittest route:
+        # Оновлюємо найкращий маршрут :
         descendant_pop.get_fittest()
 
         return descendant_pop
@@ -491,50 +389,45 @@ class App(object):
         Initiates an App object to run for n_generations with a population of size pop_size
         '''
 
-        if csv_cities:
-            self.read_csv()
-
         self.n_generations = n_generations
         self.pop_size = pop_size
 
-        # Once all the cities are defined, calcualtes the distances for all of them.
-        # for city in list_of_cities:
-        #     city.calculate_distances()
+        # Обраховуємо відстані між містами
         if graph:
             self.set_city_gcoords()
             
-            # Initiates a window object & sets its title
+            # Ініціалізується вікно з своїм тайтлом
             self.window = Tk()
             self.window.wm_title("Generation 0")
 
-            # initiates two canvases, one for current and one for best
+            # Ініціалізується дві площини з поточним маршрутом , і з найкращим
             self.canvas_current = Canvas(self.window, height=300, width=300)
             self.canvas_best = Canvas(self.window, height=300, width=300)
 
-            # Initiates two labels
+            #  Ініціалізується дві назви
             self.canvas_current_title = Label(self.window, text="Best route of current gen:")
             self.canvas_best_title = Label(self.window, text="Overall best so far:")
 
-            # Initiates a status bar with a string
+            # Ініціалізується рядок стану
             self.stat_tk_txt = StringVar()
             self.status_label = Label(self.window, textvariable=self.stat_tk_txt, relief=SUNKEN, anchor=W)
 
-            # creates dots for the cities on both of the canvases
+            # Створює точки на обох полотнах
             for city in list_of_cities:
                 self.canvas_current.create_oval(city.graph_x-2, city.graph_y-2, city.graph_x + 2, city.graph_y + 2, fill='blue')
                 self.canvas_best.create_oval(city.graph_x-2, city.graph_y-2, city.graph_x + 2, city.graph_y + 2, fill='blue')
 
-            # Packs all the widgets (physically creates them and places them in order)
+            # Фізично створює всі вище визначені віджети
             self.canvas_current_title.pack()
             self.canvas_current.pack()
             self.canvas_best_title.pack()
             self.canvas_best.pack()
             self.status_label.pack(side=BOTTOM, fill=X)
 
-            # Runs the main window loop
+            # Запускає цикл головного вікна
             self.window_loop(graph)
         else:
-            print("Calculating GA_loop")
+            print("Обрахування циклу ГА")
             self.GA_loop(n_generations,pop_size, graph=graph)
 
     def set_city_gcoords(self):
@@ -543,13 +436,13 @@ class App(object):
         This method takes the original city.x and city.y and transforms them so that the coordinates map fully onto the 300x300 map view.
         '''
 
-        # defines some variables (we will set them next)
+        # Визначення змінних (границі для координат)
         min_x = 100000
         max_x = -100000
         min_y = 100000
         max_y = -100000
 
-        #finds the proper maximum/minimum
+        #знаходимо найменше та найбільше значення координат
         for city in list_of_cities:
 
             if city.x < min_x:
@@ -562,18 +455,18 @@ class App(object):
             if city.y > max_y:
                 max_y = city.y
 
-        # shifts the graph_x so the leftmost city starts at x=0, same for y.
+        # Змінюємо граф так що найлівіше місце починається на координаті(0,0)
         for city in list_of_cities:
             city.graph_x = (city.graph_x + (-1*min_x))
             city.graph_y = (city.graph_y + (-1*min_y))
 
-        # resets the variables now we've made changes
+        # Відновлюємо значення змінних
         min_x = 100000
         max_x = -100000
         min_y = 100000
         max_y = -100000
 
-        #finds the proper maximum/minimum
+        # знаходимо найменше та найбільше значення координат
         for city in list_of_cities:
 
             if city.graph_x < min_x:
@@ -586,13 +479,14 @@ class App(object):
             if city.graph_y > max_y:
                 max_y = city.graph_y
 
-        # if x is the longer dimension, set the stretch factor to 300 (px) / max_x. Else do it for y. This conserves aspect ratio.
+        # Якщо координатна пряма х довше у, встановлюємо параметр розтягнення до 300 (px).
+        # Це зберігає співідношення сторін
         if max_x > max_y:
             stretch = 300 / max_x
         else:
             stretch = 300 / max_y
 
-        # stretch all the cities so that the city with the highest coordinates has both x and y < 300
+        # Розтягуємо всі міста так що місто з найвищими координатами опиняється на верхньому краю графіка
         for city in list_of_cities:
             city.graph_x *= stretch
             city.graph_y = 300 - (city.graph_y * stretch)
@@ -603,16 +497,13 @@ class App(object):
         Convenience method to update the canvases with the new routes
         '''
 
-        # deletes all current items with tag 'path'
+        # Видаляємо всім речі з тегом 'path'
         the_canvas.delete('path')
 
-        # loops through the route
+        # Цикл через маршрут
         for i in range(len(the_route.route)):
-
-            # similar to i+1 but will loop around at the end
             next_i = i-len(the_route.route)+1
-
-            # creates the line from city to city
+            # Створює пряму від міста до міста (ребро)
             the_canvas.create_line(the_route.route[i].graph_x,
                                 the_route.route[i].graph_y,
                                 the_route.route[next_i].graph_x,
@@ -620,106 +511,85 @@ class App(object):
                                 tags=("path"),
                                 fill=color)
 
-            # Packs and updates the canvas
+            # Пакує і оновлює координ площину
             the_canvas.pack()
             the_canvas.update_idletasks()
 
-    def read_csv(self):
-        with open(csv_name, 'rt') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                new_city = City(row[0],float(row[1]),float(row[2]))
-
-    def GA_loop(self,n_generations,pop_size, graph=False):
+    def GA_loop(self, n_generations, pop_size, graph=False):
         '''
         Main logic loop for the GA. Creates and manages populations, running variables etc.
         '''
 
-        # takes the time to measure the elapsed time
+        # Початок відліку часу виконання алгоритму
         start_time = time.time()
 
-        # Creates the population:
-        print("Creates the population:")
+        # Створення популяції
+        print("Створення популяції:")
         the_population = RoutePop(pop_size, True)
-        print ("Finished Creation of the population")
+        print ("Створення популяції закінчене")
 
-        # the_population.rt_pop[0].route = [1,8,38,31,44,18,7,28,6,37,19,27,17,43,30,36,46,33,20,47,21,32,39,48,5,42,24,10,45,35,4,26,2,29,34,41,16,22,3,23,14,25,13,11,12,15,40,9]
-        # the_population.rt_pop[0].recalc_rt_len()
-        # the_population.get_fittest()
-
-        #checks to make sure there are no duplicate cities:
+        #Перевірка на наявність дубльованих міст:
         if the_population.fittest.is_valid_route() == False:
             raise NameError('Multiple cities with same name. Check cities.')
-            return # if there are, raise a NameError and return
 
-        # gets the best length from the first population (no practical use, just out of interest to see improvements)
+        # отримує найращу довжину першой популяції (чисто для візуалізації)
         initial_length = the_population.fittest.length
 
-        # Creates a random route called best_route. It will store our overall best route.
+        # Створюється випадково початковий найкращий маршрут
         best_route = Route()
 
         if graph:
-            # Update the two canvases with the just-created routes:
+            # Оновлення графіків:
             self.update_canvas(self.canvas_current,the_population.fittest,'red')
             self.update_canvas(self.canvas_best,best_route,'green')
 
 
-        # Main process loop (for number of generations)
+        # Головний цикл алгоритму (для числа генерацій)
         for x in range(1,n_generations):
+            # Оновлюємо графік кожні n генерацій
             # Updates the current canvas every n generations (to avoid it lagging out, increase n)
-            if x % 8 == 0 and graph:
+            if x % 5 == 0 and graph:
                 self.update_canvas(self.canvas_current,the_population.fittest,'red')
 
-            # Evolves the population:
+            # Еволюція популяції:
             the_population = GA().evolve_population(the_population)
 
-            # If we have found a new shorter route, save it to best_route
+            # Якщо знайдений коротший маршрут записуєм його в best_route
             if the_population.fittest.length < best_route.length:
-                # set the route (copy.deepcopy because the_population.fittest is persistent in this loop so will cause reference bugs)
+                # Встановлюємо маршрут
                 best_route = copy.deepcopy(the_population.fittest)
                 if graph:
-                    # Update the second canvas because we have a new best route:
+                    # Оновлюємо другий графік(найкращий маршрут):
                     self.update_canvas(self.canvas_best,best_route,'green')
-                    # update the status bar (bottom bar)
-                    self.stat_tk_txt.set('Initial length {0:.2f} Best length = {1:.2f}'.format(initial_length,best_route.length))
+                    # Оновлюємо лінійку статусу
+                    self.stat_tk_txt.set('Initial length {0:.2f} Best length = {1:.2f}'
+                                         .format(initial_length,best_route.length))
                     self.status_label.pack()
                     self.status_label.update_idletasks()
 
-            # Prints info to the terminal:
             self.clear_term()
-            print('Generation {0} of {1}'.format(x,n_generations))
-            print(' ')
-            print('Overall fittest has length {0:.2f}'.format(best_route.length))
-            print('and goes via:')
-            best_route.pr_cits_in_rt(True)
-            print(' ')
-            print('Current fittest has length {0:.2f}'.format(the_population.fittest.length))
-            print('And goes via:')
-            the_population.fittest.pr_cits_in_rt(True)
-            print(' ')
-            print('''The screen with the maps may become unresponsive if the population size is too large. It will refresh at the end.''')
 
             if graph:
-                # sets the window title to the latest Generation:
+                # Змінюємо тайтл вікна відповідно до останньої генерації:
                 self.window.wm_title("Generation {0}".format(x))
         if graph:
-            # sets the window title to the last generation
+            # Змінюємо тайтл вікна відповідно до останньої генерації
             self.window.wm_title("Generation {0}".format(n_generations))
 
-            # updates the best route canvas for the last time:
+            # Змінюємо графік найкращого маршруту:
             self.update_canvas(self.canvas_best,best_route,'green')
             
-        # takes the end time of the run:
+        # ЗУпиняємо лічильник виконання алгоритму:
         end_time = time.time()
 
-        # Prints final output to terminal:
+        # Видруковуємо фінальну інформацію :
         self.clear_term()
-        print('Finished evolving {0} generations.'.format(n_generations))
-        print("Elapsed time was {0:.1f} seconds.".format(end_time - start_time))
+        print('Закінчено еволюцію {0} генерацій.'.format(n_generations))
+        print("Час дії алгоритму {0:.1f} секунд.".format(end_time - start_time))
         print(' ')
-        print('Initial best distance: {0:.2f}'.format(initial_length))
-        print('Final best distance:   {0:.2f}'.format(best_route.length))
-        print('The best route went via:')
+        print('Початкова найкраща відстань: {0:.2f}'.format(initial_length))
+        print(' ----- Кінцева найкраща відстань:   {0:.2f} ----- '.format(best_route.length))
+        print('Порядок проходження вершин :\n')
         best_route.pr_cits_in_rt(print_route=True)
 
     def window_loop(self, graph):
@@ -727,11 +597,11 @@ class App(object):
         Wraps the GA_loop() method and initiates the window on top of the logic.
         window.mainloop() hogs the Thread, that's why the GA_loop is called as a callback
         '''
-        # see http://stackoverflow.com/questions/459083/how-do-you-run-your-own-code-alongside-tkinters-event-loop
-        self.window.after(0,self.GA_loop(self.n_generations, self.pop_size, graph))
+        # Час між повторними викликами функції (атрибуту)
+        self.window.after(0, self.GA_loop(self.n_generations, self.pop_size, graph))
         self.window.mainloop()
 
-    # Helper function for clearing terminal window
+    # Очищення консольного вікна
     def clear_term(self):
         os.system('cls' if os.name=='nt' else 'clear')
 
@@ -739,123 +609,35 @@ class App(object):
 #### Declare cities here: ####
 ##############################
 
-# Australian Cities:
-# adelaide = City('adelaide', 138.60, -34.93)
-# brisbane = City('brisbane', 153.02, -27.47)
-# canberra = City('canberra', 149.13, -35.30)
-# darwin = City('darwin', 130.83, -12.45)
-# hobart = City('hobart', 147.32, -42.88)
-# melbourne = City('melbourne', 144.97, -37.82)
-# perth = City('perth', 115.85, -31.95)
-# sydney = City('sydney', 151.20, -33.87)
-
-## Random cities
-# i = City('c1', 10, 2)
-# j = City('c2', 1, 22)
-# k = City('c3', 2, 13)
-
-def specific_cities2():
-    """function to calculate the route for files in data folder with coordinates"""
-    start_time = time.time()
-    f = open("data/pr2392-2.in", "r")
-    f.readline()
-    f.readline()
-    f.readline()
-    lines = int(f.readline().split()[2])
-    f.readline()
-    f.readline()
-    for i, li in enumerate(f.readlines(), start=1):
-        os.system('cls' if os.name=='nt' else 'clear')
-        print("Read '{}': {}/{} lines".format(f.name, i, lines))
-        c = li.split()
-        if not 'EOF' in c:
-            tmp = City("C" + str(c[0]), float(c[1]), float(c[2]))
-    print("---Time reading file and creating Cities: %s seconds ---\n" % str(time.time() - start_time))
-    
-    start_time = time.time()
-    print("Calculating distances...")
-    for city in list_of_cities:
-        city.calculate_distances()
-    print("---Time Calculating distances: %s seconds ---\n" % str(time.time() - start_time))
-    
-    print("Searching for shortest way possible...")
-    try:
-        start_time = time.time()
-        app = App(n_generations=k_n_generations,pop_size=k_population_size)
-        print("---Route found in %s seconds ---" % str(time.time() - start_time))
-    except Exception as e:
-        print("\n[ERROR]: %s\n" % e)
-    # try:
-    # except Exception, e:
-    #     print "[Exception]", e
-
-
-def specific_cities():
+def data_uploading():
     """function to calculate the route for files in data folder with distances"""
     try:
-        start_time = time.time()
-        f = open("data/3x3.in", "r")
-        # f = open("data/bays29.in", "r")
-        # f = open("data/d493.in", "r")
-        # f = open("data/pr2392.in", "r")
-        lines = int(f.readline())
-        for i, li in enumerate(f.readlines(), start=1):
-            os.system('cls' if os.name=='nt' else 'clear')
-            print("Read '{}': {}/{} lines".format(f.name, i, lines))
-            d = {}
+        file = open("data/Data_Lviv_Hub.in", "r", encoding="utf8")
+        lines = int(file.readline())
+        cities = file.readline().split()
+        x_coord = [float(i) for i in file.readline().split()]
+        y_coord = [float(i) for i in file.readline().split()]
+        for i, li in enumerate(file.readlines(), start=1):
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print("Зчитування '{}': {}/{} рядок".format(file.name, i, lines))
+            cur_city = {}
             for j, line in enumerate(map(float, li.split()), start=1):
-                d["C" + str(j)] = line
-            tmp = City("C" + str(i), 10, 10, d)
-        print("--- %s seconds ---" % str(time.time() - start_time))
+                cur_city[cities[j-1]] = line
+            tmp = City(cities[i-1], x_coord[i-1], y_coord[i-1], cur_city)
         band = True
     except Exception as e:
         print(e)
         band = False
     if band:
-        print("Searching for shortest path possible...")
+        print("Пошук найкращого можливого маршруту...")
+        start_time = time.time()
         try:
-            start_time = time.time()
-            app = App(n_generations=k_n_generations,pop_size=k_population_size)
-            print("---Route was found in %s seconds ---" % str(time.time() - start_time))
+            App(n_generations=num_generations, pop_size=population_size, graph=True)
         except Exception as e:
             print("\n[ERROR]: %s\n" % e)
-
-
-def random_cities():
-    i = City('i', 60, 200)
-    j = City('j', 180, 190)
-    k = City('k', 100, 180)
-    l = City('l', 140, 180)
-    m = City('m', 20, 160)
-    n = City('n', 100, 160)
-    o = City('o', 140, 140)
-    p = City('p', 40, 120)
-    q = City('q', 100, 120)
-    r = City('r', 180, 100)
-    s = City('s', 60, 80)
-    t = City('t', 120, 80)
-    u = City('u', 180, 60)
-    v = City('v', 20, 40)
-    w = City('w', 100, 40)
-    x = City('x', 200, 40)
-    a = City('a', 20, 20)
-    b = City('b', 60, 20)
-    c = City('c', 160, 20)
-    d = City('d', 68, 130)
-    e = City('e', 10, 10)
-    f = City('f', 75, 180)
-    g = City('g', 190, 190)
-    h = City('h', 200, 10)
-    # a1 = City('a1', 53, 99)
-
-    for city in list_of_cities:
-        city.calculate_distances()
-    ######## create and run an application instance:
-    app = App(n_generations=k_n_generations,pop_size=k_population_size, graph=True)
-
+        finally:
+            print("---Шлях знайдений за  %s секунд ---" % (time.time() - start_time))
 if __name__ == '__main__':
-    """Select only one function: random, specific or specific2"""
-    # specific_cities2()
-    #specific_cities()
-    random_cities()
+    data_uploading()
+
 
